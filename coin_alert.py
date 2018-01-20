@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.5
+#!/usr/local/bin/python3.5
 
 #################################################################################################
 #
@@ -29,10 +29,12 @@ PATTERN    = r"^[a-zA-Z]+\d{1,2}(h|d)\d+$"
 
 SENDER     = os.environ['SENDER']
 RECIPIENT  = os.environ['RECIPIENT']
+SECRET     = os.environ['SECRET']
+
 SMTP_PARMS = {'server': 'smtp.mail.yahoo.com',
               'port': 587,
               'username': SENDER,
-              'password': os.environ['SECRET'],
+              'password': SECRET
               }
 
 def matchPattern(a):
@@ -116,7 +118,6 @@ def main(args):
         exit(1)
 
     coins   = []
-    #results = []
 
     for a in args:
         if matchPattern(a):
@@ -142,7 +143,8 @@ def main(args):
             direction = "UP" if percent_change > 0 else "DOWN"
             subject += "%s is %s %d %% in %s..." % (result['symbol'], direction,  abs(percent_change), coin['interval'])
             alert = True
-
+        else:
+            print("percent_change for %s is below threshold, no email will be sent" %coin['name'])
 
     if alert:
         msg['Subject'] = subject
