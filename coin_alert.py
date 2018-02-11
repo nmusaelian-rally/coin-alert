@@ -28,7 +28,7 @@ from collections import OrderedDict
 PATTERN    = r"^[a-zA-Z]+\d{1,2}(h|d)\d+$"
 
 SENDER     = os.environ['SENDER']
-RECIPIENT  = os.environ['RECIPIENT']
+RECIPIENTS  = os.environ['RECIPIENTS']
 SECRET     = os.environ['SECRET']
 
 SMTP_PARMS = {'server': 'smtp.mail.yahoo.com',
@@ -36,6 +36,17 @@ SMTP_PARMS = {'server': 'smtp.mail.yahoo.com',
               'username': SENDER,
               'password': SECRET
               }
+
+import logging
+
+
+logger      = logging.getLogger(__name__)
+formatter   = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
+filehandler = logging.FileHandler('log.log')
+
+logger.setLevel(logging.INFO)
+filehandler.setFormatter(formatter)
+logger.addHandler(filehandler)
 
 def matchPattern(a):
     pattern = re.compile(PATTERN)
@@ -118,35 +129,36 @@ def main(args):
         exit(1)
 
     coins   = []
+    target_coins = []
 
     for a in args:
         if matchPattern(a):
             coins.append(parseArgs(a))
         else:
-            print("%s does not match expected pattern %s" %(a, PATTERN), file=sys.stderr)
+            logger.error("%s does not match expected pattern %s" %(a, PATTERN), file=sys.stderr)
 
-    alert = False
     subject = ""
     msg = MIMEMultipart()
-    msg['From']    = SENDER
-    msg['To']      = RECIPIENT
+    msg['From']  = SENDER
+    msg['To']    = RECIPIENTS
 
     for coin in coins:
         result = getCoinTicker(coin['name'])
         ordered_result = orderKeys(result)
-        part1, part2 = prepareMessage(ordered_result)
-        msg.attach(part1)
-        msg.attach(part2)
-        direction = "" # UP or DOWN
         percent_change = getPercentChange(coin, result)
+        logger.info('%s......%s' % (coin, percent_change))
         if abs(percent_change) >= coin['threshold']:
+            logger.info("percent_change for %s is above threshold" % coin['name'])
+            part1, part2 = prepareMessage(ordered_result)
+            msg.attach(part1)
+            msg.attach(part2)
             direction = "UP" if percent_change > 0 else "DOWN"
             subject += "%s is %s %d %% in %s..." % (result['symbol'], direction,  abs(percent_change), coin['interval'])
-            alert = True
+            target_coins.append(coin)
         else:
-            print("percent_change for %s is below threshold, no email will be sent" %coin['name'])
+            logger.info("percent_change for %s is below threshold" %coin['name'])
 
-    if alert:
+    if len(target_coins):
         msg['Subject'] = subject
         try:
             smtp = SMTP(SMTP_PARMS['server'], SMTP_PARMS['port'])
@@ -156,12 +168,14 @@ def main(args):
             smtp.ehlo()
             smtp.esmtp_features['auth'] = 'LOGIN PLAIN'
             smtp.login(SMTP_PARMS['username'], SMTP_PARMS['password'])
-            message = msg.as_string()
-            smtp.sendmail(SENDER, RECIPIENT, message)
+            alert = msg.as_string()
+            smtp.sendmail(SENDER, RECIPIENTS.split(','), alert)
             smtp.quit()
-            print("Successfully sent email")
+            logger.info("Successfully sent email")
         except SMTPException as exc:
-            print("ERROR:", exc)
+            logger.error(exc)
+    else:
+        logger.info("No email will be sent")
 
 
 if __name__ == '__main__':
