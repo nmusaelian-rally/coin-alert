@@ -142,6 +142,7 @@ def main(args):
     msg['From']  = SENDER
     msg['To']    = RECIPIENTS
 
+    logger.info('-'*30 + " START " + '-'*30)
     for coin in coins:
         result = getCoinTicker(coin['name'])
         ordered_result = orderKeys(result)
